@@ -8,7 +8,9 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const hasTrustedPublishing = process.env.NPM_CONFIG_PROVENANCE === 'true';
+const hasTrustedPublishing =
+  process.env.NPM_CONFIG_PROVENANCE === 'true' ||
+  Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN);
 const hasNpmToken = Boolean(process.env.NPM_TOKEN);
 
 if (!hasTrustedPublishing && !hasNpmToken) {
