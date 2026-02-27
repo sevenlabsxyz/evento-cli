@@ -16,6 +16,6 @@ describe('cli smoke', () => {
     const { stdout } = await execFileAsync(process.execPath, ['dist/cli.js', '--version'], {
       cwd: process.cwd()
     });
-    expect(stdout.trim()).toBe('evento/1.0.0');
+    expect(stdout.trim()).toBe('evento/1.0.1');
   });
 });
