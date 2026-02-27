@@ -34,6 +34,14 @@
     "cli",
     "events"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sevenlabsxyz/evento-cli"
+  },
+  "homepage": "https://github.com/sevenlabsxyz/evento-cli",
+  "bugs": {
+    "url": "https://github.com/sevenlabsxyz/evento-cli/issues"
+  },
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0"
