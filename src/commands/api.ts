@@ -1,26 +1,7 @@
-import { readFile } from 'node:fs/promises';
 import { usageError } from '../errors.js';
 import { httpRequest } from '../http/client.js';
 import type { RuntimeContext } from '../types.js';
-import { parseJsonObjectOrArray } from '../utils/json.js';
-
-async function resolvePayload(command: string, data?: string, dataFile?: string): Promise<unknown | undefined> {
-  if (data && dataFile) {
-    throw usageError('Conflicting flags: --data and --data-file cannot be used together.', command);
-  }
-  if (!data && !dataFile) {
-    return undefined;
-  }
-  if (data) {
-    return parseJsonObjectOrArray(data);
-  }
-  try {
-    const raw = await readFile(dataFile ?? '', 'utf8');
-    return parseJsonObjectOrArray(raw);
-  } catch {
-    throw usageError(`Invalid argument: --data-file path "${dataFile}" is not readable.`, command);
-  }
-}
+import { resolveFileInput, resolveJsonInput } from '../utils/input.js';
 
 export async function runApiCall(
   ctx: RuntimeContext,
@@ -28,17 +9,30 @@ export async function runApiCall(
   path: string,
   data?: string,
   dataFile?: string,
+  file?: string,
+  contentType?: string,
+  noAuth?: boolean,
   limit?: number,
   offset?: number,
   q?: string
 ): Promise<unknown> {
-  const payload = await resolvePayload('api', data, dataFile);
-  if (['POST', 'PUT', 'PATCH'].includes(method) && payload === undefined) {
-    throw usageError('Missing required payload: provide --data <json> or --data-file <path>.', 'api');
+  const payload = await resolveJsonInput('api', data, dataFile);
+  const fileInput = await resolveFileInput('api', file, contentType);
+
+  if (payload !== undefined && fileInput) {
+    throw usageError('Conflicting flags: --data/--data-file cannot be used with --file.', 'api');
+  }
+
+  if (['POST', 'PUT', 'PATCH'].includes(method) && payload === undefined && !fileInput) {
+    throw usageError('Missing required payload: provide --data <json>, --data-file <path>, or --file <path>.', 'api');
   }
 
   return httpRequest(ctx, 'api', method, path, {
     body: payload,
+    rawBody: fileInput?.value,
+    contentType: fileInput?.contentType,
+    sourceFileName: fileInput?.fileName,
+    auth: noAuth ? false : undefined,
     query: {
       limit,
       offset,

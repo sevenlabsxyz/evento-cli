@@ -77,5 +77,5 @@ export async function runEventsRsvp(
   if (!status || !['yes', 'no', 'maybe'].includes(status)) {
     throw usageError('Invalid argument: status must be one of yes|no|maybe.', 'events rsvp');
   }
-  return httpRequest(ctx, 'events rsvp', 'POST', `/v1/events/${eventId}/rsvp`, { body: payload });
+  return httpRequest(ctx, 'events rsvp', 'POST', `/v1/events/${eventId}/rsvps`, { body: payload });
 }

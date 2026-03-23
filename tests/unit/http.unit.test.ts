@@ -115,7 +115,7 @@ describe('httpRequest', () => {
     });
   });
 
-  it('throws parse failure for non-json success body', async () => {
+  it('returns text for non-json success body', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -127,12 +127,7 @@ describe('httpRequest', () => {
     );
 
     const ctx = createContext();
-    await expect(httpRequest(ctx, 'events list', 'GET', '/v1/events')).rejects.toMatchObject({
-      payload: {
-        code: 'HTTP_RESPONSE_PARSE_FAILED',
-        category: 'parse'
-      }
-    });
+    await expect(httpRequest(ctx, 'events list', 'GET', '/v1/events')).resolves.toBe('<html>ok</html>');
   });
 
   it('retries network errors and fails with network_error', async () => {
@@ -170,5 +165,36 @@ describe('httpRequest', () => {
     const options = firstCall[1];
     expect((options.headers as Record<string, string>).authorization).toBeUndefined();
     expect(getValidCredentials).not.toHaveBeenCalled();
+  });
+
+  it('supports raw file uploads with filename query and content type', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ success: true, data: { uploaded: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const ctx = createContext();
+    const result = await httpRequest(ctx, 'event gallery upload', 'POST', '/v1/events/evt_1/gallery/upload', {
+      rawBody: Uint8Array.from([1, 2, 3]),
+      contentType: 'image/png',
+      sourceFileName: 'photo.png',
+      fileNameQueryParam: 'filename',
+      auth: false
+    });
+
+    expect(result).toMatchObject({ success: true, data: { uploaded: true } });
+    const firstCall = (fetchMock.mock.calls as unknown as Array<[URL, RequestInit]>)[0];
+    const url = firstCall[0];
+    const options = firstCall[1];
+    expect(url.toString()).toContain('/v1/events/evt_1/gallery/upload?filename=photo.png');
+    expect(options.headers).toMatchObject({
+      accept: 'application/json',
+      'content-type': 'image/png'
+    });
+    expect((options.headers as Record<string, string>).authorization).toBeUndefined();
+    expect(options.body).toBeInstanceOf(Blob);
   });
 });

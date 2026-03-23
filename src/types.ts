@@ -1,3 +1,5 @@
+import type { ParsedApiCommand, ParsedNamedCommand } from './manifest.js';
+
 export type OutputFormat = 'json' | 'text';
 
 export interface CliErrorData {
@@ -90,17 +92,8 @@ export type ParsedCommand =
       data?: string;
       dataFile?: string;
     }
-  | {
-      family: 'api';
-      action: 'call';
-      method: string;
-      path: string;
-      data?: string;
-      dataFile?: string;
-      limit?: number;
-      offset?: number;
-      q?: string;
-    };
+  | ParsedApiCommand
+  | ParsedNamedCommand;
 
 export interface GlobalFlags {
   format?: OutputFormat;

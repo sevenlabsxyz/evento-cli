@@ -6,6 +6,16 @@ import { getValidCredentials } from '../session/refresh.js';
 
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
+export interface HttpRequestOptions {
+  query?: Record<string, string | number | boolean | undefined>;
+  body?: unknown;
+  rawBody?: string | Uint8Array;
+  auth?: boolean;
+  contentType?: string;
+  fileNameQueryParam?: string;
+  sourceFileName?: string;
+}
+
 function isRetryableNetworkError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -21,7 +31,7 @@ export async function httpRequest(
   command: string,
   method: string,
   path: string,
-  options: { query?: Record<string, string | number | undefined>; body?: unknown; auth?: boolean } = {}
+  options: HttpRequestOptions = {}
 ): Promise<unknown> {
   const needsAuth = options.auth ?? true;
 
@@ -52,6 +62,9 @@ export async function httpRequest(
       url.searchParams.set(key, String(value));
     }
   }
+  if (options.fileNameQueryParam && options.sourceFileName) {
+    url.searchParams.set(options.fileNameQueryParam, options.sourceFileName);
+  }
 
   const headers: Record<string, string> = {
     accept: 'application/json'
@@ -62,11 +75,22 @@ export async function httpRequest(
     headers.authorization = `Bearer ${credentials.access_token}`;
   }
 
-  let body: string | undefined;
-  if (options.body !== undefined) {
+  let body: string | Blob | undefined;
+  if (options.rawBody !== undefined) {
+    if (typeof options.rawBody === 'string') {
+      body = options.rawBody;
+    } else {
+      const bytes = new Uint8Array(options.rawBody.byteLength);
+      bytes.set(options.rawBody);
+      body = new Blob([bytes.buffer]);
+    }
+    if (options.contentType) {
+      headers['content-type'] = options.contentType;
+    }
+  } else if (options.body !== undefined) {
     parseJsonObjectOrArray(JSON.stringify(options.body));
     body = JSON.stringify(options.body);
-    headers['content-type'] = 'application/json';
+    headers['content-type'] = options.contentType ?? 'application/json';
   }
 
   const maxAttempts = ctx.config.retryAttempts + 1;
@@ -88,7 +112,7 @@ export async function httpRequest(
         | null;
 
       if (!response.ok || (parsed && parsed.success === false)) {
-        const message = parsed?.message ?? `HTTP ${response.status} ${response.statusText}`;
+        const message = parsed?.message ?? (text || `HTTP ${response.status} ${response.statusText}`);
         const retryable = RETRYABLE_STATUS.has(response.status);
 
         if (retryable && attempt < maxAttempts) {
@@ -114,21 +138,11 @@ export async function httpRequest(
         });
       }
 
-      if (!parsed) {
-        throw runtimeError('HTTP response parse failed', command, {
-          code: 'HTTP_RESPONSE_PARSE_FAILED',
-          category: 'parse',
-          status: response.status,
-          retryable: false,
-          requestId: response.headers.get('x-request-id'),
-          details: {
-            command,
-            endpoint: `${method} ${path}`
-          }
-        });
+      if (parsed) {
+        return parsed;
       }
 
-      return parsed;
+      return text;
     } catch (error) {
       clearTimeout(timeout);
       if (error instanceof Error && error.name === 'CliError') {
@@ -142,24 +156,20 @@ export async function httpRequest(
         continue;
       }
 
-      throw runtimeError(
-        error instanceof Error ? error.message : 'Network request failed',
-        command,
-        {
-          code: error instanceof Error && error.name === 'AbortError' ? 'request_timeout' : 'network_error',
-          category: error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'network',
-          status: null,
-          retryable,
-          details: {
-            command,
-            endpoint: `${method} ${path}`,
-            method,
-            url: url.toString(),
-            attempt,
-            maxAttempts
-          }
+      throw runtimeError(error instanceof Error ? error.message : 'Network request failed', command, {
+        code: error instanceof Error && error.name === 'AbortError' ? 'request_timeout' : 'network_error',
+        category: error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'network',
+        status: null,
+        retryable,
+        details: {
+          command,
+          endpoint: `${method} ${path}`,
+          method,
+          url: url.toString(),
+          attempt,
+          maxAttempts
         }
-      );
+      });
     }
   }
 

@@ -1,11 +1,13 @@
 # evento-cli
 
-Agent-ready CLI for Evento API with JSON-first output, profile/config support, Supabase auth login, and release automation.
+Agent-ready CLI for Evento API with singular named commands, JSON-first output, file upload support, profile/config support, and Supabase auth login.
 
 ## What this gives you
 
-- Full command surface for `auth`, `user`, `events`, and raw `api` passthrough
+- Named command families for `profile`, `event`, `registration`, `notification`, `campaign`, and `api-key`
+- Raw `api` passthrough for direct route access and debugging
 - Deterministic machine output (`--format json`) for agent workflows
+- Inline JSON, JSON file, and binary file inputs
 - Local credential/session persistence with refresh support
 - Unit + integration + smoke tests with enforced coverage gates
 - CI workflow and publish workflow for npm releases
@@ -111,44 +113,57 @@ node dist/cli.js --format json auth token
 node dist/cli.js --format json auth logout
 ```
 
-### User
+### Named command families
 
 ```bash
-evento user me
+evento profile ...
+evento event ...
+evento registration ...
+evento notification ...
+evento campaign ...
+evento api-key ...
 ```
 
-Example:
+Representative examples:
 
 ```bash
-node dist/cli.js --format json user me
+node dist/cli.js --format json profile get
+node dist/cli.js --format json profile update --data '{"displayName":"Andre"}'
+node dist/cli.js --format json event list --limit 5
+node dist/cli.js --format json event get evt_123
+node dist/cli.js --format json event publish evt_123
+node dist/cli.js --format json event comment add evt_123 --data '{"message":"See you there"}'
+node dist/cli.js --format json event gallery upload evt_123 --file ./photo.jpg
+node dist/cli.js --format json registration settings update evt_123 --data '{"requiresApproval":true}'
+node dist/cli.js --format json notification feed --page-size 20
+node dist/cli.js --format json campaign event get evt_123
+node dist/cli.js --format json api-key list
 ```
 
-### Events
+### Legacy compatibility
+
+The older `user me` and `events ...` commands still work, but the singular families above are the primary interface going forward.
+
+### Common input patterns
 
 ```bash
-evento events list [--limit <n>] [--offset <n>] [--q <search>]
-evento events get <event-id>
-evento events create (--data <json> | --data-file <path>)
-evento events update <event-id> (--data <json> | --data-file <path>)
-evento events delete <event-id>
-evento events rsvp <event-id> (--data <json> | --data-file <path>)
+evento event comment add evt_123 --data '{"message":"hello"}'
+evento event create --data-file ./event.json
+evento event gallery upload evt_123 --file ./photo.jpg
 ```
 
 Examples:
 
 ```bash
-node dist/cli.js --format json events list --limit 5
-node dist/cli.js --format json events get evt_123
-node dist/cli.js --format json events create --data '{"title":"Launch","startsAt":"2026-03-01T10:00:00Z"}'
-node dist/cli.js --format json events update evt_123 --data-file ./event-update.json
-node dist/cli.js --format json events rsvp evt_123 --data '{"status":"yes"}'
-node dist/cli.js --format json events delete evt_123
+node dist/cli.js --format json event comment add evt_123 --data '{"message":"Launch tonight"}'
+node dist/cli.js --format json event create --data-file ./event-create.json
+node dist/cli.js --format json event gallery upload evt_123 --file ./cover.png
 ```
 
 ### API passthrough
 
 ```bash
-evento api <METHOD> <PATH> [--data <json> | --data-file <path>] [--limit <n>] [--offset <n>] [--q <search>]
+evento api <METHOD> <PATH> [--data <json> | --data-file <path> | --file <path>] [--content-type <mime>] [--limit <n>] [--offset <n>] [--q <search>] [--no-auth]
 ```
 
 Examples:
@@ -157,6 +172,7 @@ Examples:
 node dist/cli.js --format json api GET /v1/user
 node dist/cli.js --format json api GET /v1/events --limit 10 --offset 0 --q btc
 node dist/cli.js --format json api POST /v1/events --data-file ./event.json
+node dist/cli.js --format json api POST /v1/events/evt_123/gallery/upload --file ./photo.jpg --content-type image/jpeg
 ```
 
 ## Output and exit semantics

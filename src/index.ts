@@ -7,7 +7,7 @@ import { loadEnvFiles } from './config/load-env.js';
 import { resolveConfig } from './config/resolve.js';
 import type { RuntimeContext } from './types.js';
 import { printError, printNoOutputSuccess, printSuccess } from './output/print.js';
-import { rootHelp } from './commands/help.js';
+import { rootHelp } from './help.js';
 import { runAuthLogin, runAuthLogout, runAuthStatus, runAuthToken } from './commands/auth.js';
 import {
   runEventsCreate,
@@ -19,6 +19,7 @@ import {
 } from './commands/events.js';
 import { runUserMe } from './commands/user.js';
 import { runApiCall } from './commands/api.js';
+import { runNamedCommand } from './commands/named.js';
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -62,7 +63,11 @@ export async function runCli(
     ctx = {
       config,
       commandName:
-        command.family === 'meta' ? command.action : `${command.family}${'action' in command ? ` ${command.action}` : ''}`,
+        command.family === 'meta'
+          ? command.action
+          : command.family === 'named'
+            ? command.definitionId
+            : `${command.family}${'action' in command ? ` ${command.action}` : ''}`,
       ...io
     };
 
@@ -160,10 +165,19 @@ export async function runCli(
         command.path,
         command.data,
         command.dataFile,
+        command.file,
+        command.contentType,
+        command.noAuth,
         command.limit,
         command.offset,
         command.q
       );
+      printSuccess(ctx, payload);
+      return 0;
+    }
+
+    if (command.family === 'named') {
+      const payload = await runNamedCommand(ctx, command);
       printSuccess(ctx, payload);
       return 0;
     }

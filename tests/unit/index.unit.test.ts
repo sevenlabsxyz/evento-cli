@@ -14,6 +14,8 @@ describe('runCli meta commands', () => {
     const io = harness.read();
     expect(code).toBe(0);
     expect(io.stdout).toContain('Usage: evento');
+    expect(io.stdout).toContain('Profile:');
+    expect(io.stdout).toContain('event gallery upload <eventId> [--file <path>] [--content-type <mime>]');
   });
 
   it('returns usage error for unknown command in json mode', async () => {

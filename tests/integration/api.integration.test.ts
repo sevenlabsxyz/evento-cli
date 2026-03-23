@@ -8,6 +8,7 @@ import { createTestIo } from '../helpers/io.js';
 
 describe('api integration', () => {
   let home: string;
+  let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     home = join(tmpdir(), `evento-cli-${randomUUID()}`);
@@ -45,22 +46,20 @@ describe('api integration', () => {
     );
     await chmod(join(configDir, 'credentials.json'), 0o600);
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            success: true,
-            message: 'ok',
-            data: [{ id: 'evt_1' }]
-          }),
-          {
-            status: 200,
-            headers: { 'content-type': 'application/json' }
-          }
-        )
+    fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          message: 'ok',
+          data: [{ id: 'evt_1' }]
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        }
       )
     );
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   afterEach(() => {
@@ -77,6 +76,34 @@ describe('api integration', () => {
     expect(code).toBe(0);
     expect(io.stdout).toContain('"success":true');
     expect(io.stdout).toContain('evt_1');
+  });
+
+  it('calls named profile get successfully', async () => {
+    const harness = createTestIo();
+    const code = await runCli(['profile', 'get'], harness.io);
+    const io = harness.read();
+    expect(code).toBe(0);
+    expect(io.stdout).toContain('"success":true');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const firstCall = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(firstCall[0].toString()).toContain('/v1/user');
+  });
+
+  it('uploads a file through a named command', async () => {
+    const imagePath = join(home, 'photo.png');
+    await writeFile(imagePath, Buffer.from([1, 2, 3]));
+
+    const harness = createTestIo();
+    const code = await runCli(['event', 'gallery', 'upload', 'evt_1', '--file', imagePath], harness.io);
+    const io = harness.read();
+
+    expect(code).toBe(0);
+    expect(io.stdout).toContain('"success":true');
+    const firstCall = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(firstCall[0].toString()).toContain('/v1/events/evt_1/gallery/upload?filename=photo.png');
+    expect(firstCall[1].method).toBe('POST');
+    expect((firstCall[1].headers as Record<string, string>)['content-type']).toBe('image/png');
+    expect(firstCall[1].body).toBeInstanceOf(Blob);
   });
 
   it('returns usage error for invalid api path', async () => {

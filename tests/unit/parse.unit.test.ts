@@ -49,6 +49,56 @@ describe('parseArgs', () => {
     });
   });
 
+  it('parses named profile get', () => {
+    const parsed = parseArgs(['profile', 'get']);
+    expect(parsed.command).toEqual({
+      family: 'named',
+      definitionId: 'profile.get',
+      commandPath: ['profile', 'get'],
+      positionals: {},
+      options: {}
+    });
+  });
+
+  it('parses named command with inline json payload', () => {
+    const parsed = parseArgs(['event', 'comment', 'add', 'evt_1', '--data', '{"message":"hello"}']);
+    expect(parsed.command).toEqual({
+      family: 'named',
+      definitionId: 'event.comment.add',
+      commandPath: ['event', 'comment', 'add'],
+      positionals: {
+        eventId: 'evt_1'
+      },
+      options: {
+        data: '{"message":"hello"}'
+      }
+    });
+  });
+
+  it('parses named upload command and api passthrough file flags', () => {
+    expect(parseArgs(['event', 'gallery', 'upload', 'evt_1', '--file', './photo.png']).command).toEqual({
+      family: 'named',
+      definitionId: 'event.gallery.upload',
+      commandPath: ['event', 'gallery', 'upload'],
+      positionals: {
+        eventId: 'evt_1'
+      },
+      options: {
+        file: './photo.png'
+      }
+    });
+
+    expect(parseArgs(['api', 'POST', '/v1/upload', '--file', './photo.png', '--content-type', 'image/png', '--no-auth']).command).toMatchObject({
+      family: 'api',
+      action: 'call',
+      method: 'POST',
+      path: '/v1/upload',
+      file: './photo.png',
+      contentType: 'image/png',
+      noAuth: true
+    });
+  });
+
   it('parses lowercase -v as version flag', () => {
     const parsed = parseArgs(['-v']);
     expect(parsed.command).toEqual({ family: 'meta', action: 'version' });
@@ -86,6 +136,14 @@ describe('parseArgs', () => {
     expect(() =>
       parseArgs(['events', 'create', '--data', '{}', '--data-file', './x.json'])
     ).toThrowError(/Conflicting flags/);
+  });
+
+  it('throws when named command is missing a positional or gets invalid flags', () => {
+    expect(() => parseArgs(['event', 'get'])).toThrowError(/Missing required argument: eventId/);
+    expect(() => parseArgs(['profile', 'get', '--data', '{}'])).toThrowError(/Unknown flag/);
+    expect(() => parseArgs(['event', 'gallery', 'upload', 'evt_1', '--content-type', 'image/png'])).toThrowError(
+      /--content-type requires --file/
+    );
   });
 
   it('throws when global flag value is missing', () => {
@@ -153,5 +211,8 @@ describe('parseArgs', () => {
       /non-negative integer/
     );
     expect(() => parseArgs(['api', 'GET', '/v1/events', '--wat'])).toThrowError(/Unknown flag/);
+    expect(() => parseArgs(['api', 'POST', '/v1/events', '--data', '{}', '--file', './x'])).toThrowError(
+      /Conflicting flags/
+    );
   });
 });
